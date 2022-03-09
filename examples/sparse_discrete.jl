@@ -77,11 +77,13 @@ total_time2 = 0.
 code = gen_code1(sparse1, sparse2)
 bdd = compile(code)
 println("Using a \"dense\" discrete function (original):")
+println(num_flips(bdd), " flips")
 @time one_res = infer(code, :bdd)
 
 code = gen_code2(sparse1, sparse2)
 bdd = compile(code)
 println("Using a \"sparse\" discrete function:")
+println(num_flips(bdd), " flips")
 @time two_res = infer(code, :bdd)
 
 # This check is stricter than need be. If fails, consider switching to isapprox
