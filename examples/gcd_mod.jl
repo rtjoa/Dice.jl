@@ -72,17 +72,13 @@ function code_gcd(
     end
 end
 
-all_pass = true
 function test(sparse::Vector{Tuple{Int,Float64}})
     for res = 0:10
         code = code_gcd(sparse, sparse, res)
         bdd = compile(code)
         dice_p = infer(code, :bdd)
         naive_p = gcd_enumeration(sparse, sparse, res)
-        if !isapprox(dice_p, naive_p)
-            global all_pass = false
-            println("FAIL. ", sparse, " ", res, " Expected: ", naive_p, " Got: ", dice_p)
-        end
+        @assert dice_p ≈ naive_p
     end
 end
 
@@ -90,6 +86,3 @@ sparse1 = [(4, 0.3), (6, 0.2), (9, 0.5)] # 4 has probability 0.3, etc...
 sparse2 = [(0, 0.2), (4, 0.3), (6, 0.5)]
 test(sparse1)
 test(sparse2)
-if all_pass
-    println("ALL TESTS PASSED")
-end
