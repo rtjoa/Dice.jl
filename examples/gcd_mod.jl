@@ -11,21 +11,19 @@ function unpack_sparse(sparse::Vector{Tuple{Int,Float64}})
     return dice_disc
 end
 
-# Naively calculate P[gcd(X, Y) = res] given distributions of X and Y
+# Naively calculate PMF of gcd(X, Y) given distributions of X and Y
 function gcd_enumeration(
     sparse1::Vector{Tuple{Int,Float64}},
-    sparse2::Vector{Tuple{Int,Float64}},
-    res::Int
+    sparse2::Vector{Tuple{Int,Float64}}
 )
-    total_weight = 0
+    gcd_dist = Dict()
     for (val1, weight1) in sparse1
         for (val2, weight2) in sparse2
-            if gcd(val1, val2) == res
-                total_weight += weight1 * weight2
-            end
+            res = gcd(val1, val2)
+            gcd_dist[res] = get(gcd_dist, res, 0) + weight1 * weight2
         end
     end
-    return total_weight
+    return gcd_dist
 end
 
 # Generate Dice code for P[gcd(X, Y) = res] given distributions of X and Y
@@ -55,7 +53,7 @@ function code_gcd(
 
         # https://en.wikipedia.org/wiki/Euclidean_algorithm#Implementations
         function dice_gcd(a::Tuple{DistInt, DistBool}, b::Tuple{DistInt, DistBool})
-            for _ = 0:20  # TODO: better bound
+            for _ = 1 : 1 + max_bits(b[1]) ÷ log2(MathConstants.golden)
                 b_zero = prob_equals(b[1], 0)
                 t = b
                 amb = (a[1] % b[1])
@@ -73,16 +71,18 @@ function code_gcd(
 end
 
 function test(sparse::Vector{Tuple{Int,Float64}})
-    for res = 0:10
+    gcd_dist = gcd_enumeration(sparse, sparse)
+    for res in Set(Iterators.flatten((keys(gcd_dist), 0:1)))
         code = code_gcd(sparse, sparse, res)
         bdd = compile(code)
         dice_p = infer(code, :bdd)
-        naive_p = gcd_enumeration(sparse, sparse, res)
-        @assert dice_p ≈ naive_p
+        @assert dice_p ≈ get(gcd_dist, res, 0)
     end
 end
 
-sparse1 = [(4, 0.3), (6, 0.2), (9, 0.5)] # 4 has probability 0.3, etc...
-sparse2 = [(0, 0.2), (4, 0.3), (6, 0.5)]
-test(sparse1)
-test(sparse2)
+test([(4, 0.3), (6, 0.2), (9, 0.5)])  # 4 has probability 0.3, etc...
+test([(0, 0.2), (4, 0.3), (6, 0.5)])
+test([(0, 0.1), (2, 0.2), (3, 0.7)])
+test([(0, 0.1), (8, 0.2), (13, 0.7)])
+test([(0, 0.1), (34, 0.2), (55, 0.7)])
+# test([(144, 0.1), (233, 0.2), (610, 0.3), (987, 0.4)])  # too slow...
