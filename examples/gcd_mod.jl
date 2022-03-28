@@ -52,7 +52,9 @@ function code_gcd(
         end
 
         # https://en.wikipedia.org/wiki/Euclidean_algorithm#Implementations
-        function dice_gcd(a::Tuple{DistInt, DistBool}, b::Tuple{DistInt, DistBool})
+        function dice_gcd(a::DistInt, b::DistInt)
+            a = a, flip(0)
+            b = b, flip(0)
             for _ = 1 : 1 + max_bits(b[1]) ÷ log2(MathConstants.golden)
                 b_zero = prob_equals(b[1], 0)
                 t = b
@@ -63,8 +65,8 @@ function code_gcd(
             return a[1], a[2]
         end
 
-        a = discrete(discrete_dist1), flip(0)
-        b = discrete(discrete_dist2), flip(0)
+        a = discrete(discrete_dist1)
+        b = discrete(discrete_dist2)
         g = dice_gcd(a, b)
         prob_equals(g[1], res) & !g[2]
     end
