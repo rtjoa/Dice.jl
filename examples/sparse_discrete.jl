@@ -1,5 +1,6 @@
 using Revise
 using Dice
+using Dice: num_flips, num_nodes
 
 # Convert (value, weight) tuples to input for dice discrete distribution
 # Example: unpack_sparse([(0, 0.2), (3, 0.8)]) => [0.2, 0.0, 0.0, 0.8]
@@ -77,12 +78,14 @@ total_time2 = 0.
 code = gen_code1(sparse1, sparse2)
 bdd = compile(code)
 println("Using a \"dense\" discrete function (original):")
+println(num_nodes(bdd), " nodes")
 println(num_flips(bdd), " flips")
 @time one_res = infer(code, :bdd)
 
 code = gen_code2(sparse1, sparse2)
 bdd = compile(code)
 println("Using a \"sparse\" discrete function:")
+println(num_nodes(bdd), " nodes")
 println(num_flips(bdd), " flips")
 @time two_res = infer(code, :bdd)
 
