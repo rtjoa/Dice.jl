@@ -1,6 +1,6 @@
 using Revise
 using Dice
-using Dice: num_flips, num_nodes, ifelse
+using Dice: num_flips, num_nodes, ifelse, dump_dot
 
 # Calculate discrete(0.1, 0.2, 0.3, 0.4) using SKB
 code_skb = @dice begin
