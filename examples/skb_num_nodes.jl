@@ -3,7 +3,7 @@ using Dice
 using Dice: num_flips, num_nodes, ifelse
 
 # Number of nodes SKB needs to model a distribution on n bits
-skb_num_nodes(n) = 2^n * (n - 1) + 2
+skb_num_nodes(n) = 2^n * (n - 1) + 3
 
 function generate_code_skb(p::Vector{Float64})
     @dice begin
@@ -25,7 +25,7 @@ function test_skb_num_nodes(p::Vector{Float64})
     bdd = compile(code)
     @assert infer(code, :bdd) ≈ p  # Verify correctness
 
-    bdd_nodes = num_nodes(bdd, as_add=false)
+    bdd_nodes = num_nodes(bdd)
     num_bits = round(Int, log2(length(p)))
     @assert bdd_nodes == skb_num_nodes(num_bits)  # Verify num bits
 
@@ -45,7 +45,7 @@ end
 # the order of flip introduction, takes fewer nodes (but still O(n2^n)).
 
 #==                                       vvvvvvvvvvvvvvv diff
-skb_num_nodes(n) = 2^n * (n - 1) + 2      - 2^(n - 1) + 1
+skb_num_nodes(n) = 2^n * (n - 1) + 3      - 2^(n - 1) + 1
 
 function generate_code_skb(p::Vector{Float64})
     @dice begin

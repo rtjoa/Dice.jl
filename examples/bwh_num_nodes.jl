@@ -3,7 +3,7 @@ using Dice
 using Dice: num_flips, num_nodes, ifelse
 
 # Number of nodes BWH needs to model a distribution on n bits
-bwh_num_nodes(n) = 2^(n + 1) - n - 1
+bwh_num_nodes(n) = 2^(n + 1) - n
 
 function generate_code_bwh(p::Vector{Float64})
     @dice begin
@@ -31,11 +31,11 @@ function test_bwh_num_nodes(p::Vector{Float64})
     bdd = compile(code)
     @assert infer(code, :bdd) ≈ p  # Verify correctness
 
-    bdd_nodes = num_nodes(bdd, as_add=false)
+    bdd_nodes = num_nodes(bdd)
     num_bits = round(Int, log2(length(p)))
     @assert bdd_nodes == bwh_num_nodes(num_bits)  # Verify num bits
 
-    println("BWH for a $(num_bits)-bit distribution: $(bdd_nodes) bdd nodes, $(num_flips(bdd)) flips")
+    println("BWH for a $(num_bits)-bit distribution: $(bdd_nodes) nodes, $(num_flips(bdd)) flips")
 end
 
 dist_2 = [0.5, 0.5]
