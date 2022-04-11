@@ -2,8 +2,8 @@ using Revise
 using Dice
 using Dice: num_flips, num_nodes, ifelse, dump_dot
 
-# Calculate discrete(0.1, 0.2, 0.3, 0.4) using SKB
-code_skb = @dice begin
+# Calculate discrete(0.1, 0.2, 0.3, 0.4) using SBK
+code_sbk = @dice begin
     ifelse(flip(1/10),
         DistInt(dicecontext(), 0),
         ifelse(flip(2/9),
@@ -30,8 +30,8 @@ dump_dot(bdd, "bwh_add.dot")
 dump_dot(bdd, "bwh_bdd.dot", as_add=false)
 println()
 
-bdd = compile(code_skb)
-println("SKB: $(infer(code_skb, :bdd))")
+bdd = compile(code_sbk)
+println("SBK: $(infer(code_sbk, :bdd))")
 println("$(num_nodes(bdd)) add nodes, $(num_nodes(bdd, as_add=false)) bdd nodes, $(num_flips(bdd)) flips")
-dump_dot(bdd, "skb_add.dot")
-dump_dot(bdd, "skb_bdd.dot", as_add=false)
+dump_dot(bdd, "sbk_add.dot")
+dump_dot(bdd, "sbk_bdd.dot", as_add=false)
