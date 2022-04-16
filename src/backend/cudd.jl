@@ -5,12 +5,13 @@ using CUDD
 mutable struct CuddMgr <: DiceManager
     cuddmgr::Ptr{Nothing}
     probs::Dict{Int,Float64}
+    error_bit
 end
 
 function CuddMgr() 
     cudd_mgr = initialize_cudd()
     Cudd_DisableGarbageCollection(cudd_mgr) # note: still need to ref because CUDD can delete nodes without doing a GC pass
-    mgr = CuddMgr(cudd_mgr, Dict{Int,Float64}())
+    mgr = CuddMgr(cudd_mgr, Dict{Int,Float64}(), Cudd_ReadLogicZero(cudd_mgr))
     finalizer(mgr) do x
         Cudd_Quit(x.cuddmgr)
     end
@@ -73,6 +74,11 @@ function infer(mgr::CuddMgr, x)
     exp(logprob)
 end
 
+
+function infer_error(mgr::CuddMgr)
+    infer(mgr, mgr.error_bit)
+end
+
 ##################################
 # additional CUDD-based functionality
 ##################################
@@ -95,6 +101,9 @@ function Base.show(io::IO, x::CuddMgr)
     print(io, "$(typeof(x))@$(hash(x)÷ 10000000000000)")
 end
 
+
+track_error(new_error::DistBool) =
+    new_error.mgr.error_bit = disjoin(new_error.mgr, new_error.mgr.error_bit, new_error.bit)
 
 isconstant(x) =
     isone(Cudd_IsConstant(x))
