@@ -67,18 +67,17 @@ function code_gcd(
 
         a = discrete(discrete_dist1)
         b = discrete(discrete_dist2)
-        g = dice_gcd(a, b)
-        prob_equals(g[1], res) & !g[2]
+        g = dice_gcd(a, b)[1]
     end
 end
 
 function test(sparse::Vector{Tuple{Int,Float64}})
     gcd_dist = gcd_enumeration(sparse, sparse)
+    code = code_gcd(sparse, sparse, 4)
+    bdd = compile(code)
+    dice_p = infer(bdd)
     for res in Set(Iterators.flatten((keys(gcd_dist), 0:1)))
-        code = code_gcd(sparse, sparse, res)
-        bdd = compile(code)
-        dice_p = infer(code, :bdd)
-        @assert dice_p ≈ get(gcd_dist, res, 0)
+        @assert dice_p[res + 1] ≈ get(gcd_dist, res, 0)
     end
 end
 
@@ -87,4 +86,4 @@ test([(0, 0.2), (4, 0.3), (6, 0.5)])
 test([(0, 0.1), (2, 0.2), (3, 0.7)])
 test([(0, 0.1), (8, 0.2), (13, 0.7)])
 test([(0, 0.1), (34, 0.2), (55, 0.7)])
-# test([(144, 0.1), (233, 0.2), (610, 0.3), (987, 0.4)])  # too slow...
+test([(144, 0.1), (233, 0.2), (610, 0.3), (987, 0.4)])
