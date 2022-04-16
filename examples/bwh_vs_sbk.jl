@@ -4,16 +4,15 @@ using Dice: num_flips, num_nodes, ifelse, dump_dot
 
 # Calculate discrete(0.1, 0.2, 0.3, 0.4) using SBK
 code_sbk = @dice begin
-    ifelse(flip(1/10),
-        DistInt(dicecontext(), 0),
-        ifelse(flip(2/9),
-            DistInt(dicecontext(), 1),
-            ifelse(flip(3/7),
-                DistInt(dicecontext(), 2),
-                DistInt(dicecontext(), 3)
-            )
-        )
-    )
+    if flip(1/10)
+        DistInt(0)
+    elseif flip(2/9)
+        DistInt(1)
+    elseif flip(3/7)
+        DistInt(2)
+    else
+        DistInt(3)
+    end
 end
 
 # Calculate discrete(0.1, 0.2, 0.3, 0.4) using BWH
