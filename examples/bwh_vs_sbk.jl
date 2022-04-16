@@ -19,7 +19,7 @@ end
 code_bwh = @dice begin
     b1 = flip(7/10)
     b0 = Dice.ifelse(b1, flip(4/7), flip(2/3))
-    DistInt([b0, b1])
+    DistInt(dicecontext(), [b0, b1], DistBool(dicecontext(), false))
 end
 
 bdd = compile(code_bwh)

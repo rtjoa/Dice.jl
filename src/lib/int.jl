@@ -7,7 +7,12 @@ struct DistInt <: Dist{Int}
     # first index is least significant bit
     # most significant bits that are always false are trimmed
     bits::Vector{DistBool}
+    error::DistBool
 end
+
+# function DistInt(mgr, bits::Vector{DistBool})
+#     DistInt(mgr, bits, DistBool(mgr, false))
+# end
 
 function DistInt(mgr, i::Int)
     @assert i >= 0
@@ -19,11 +24,15 @@ function DistInt(mgr, i::Int)
         @inbounds bits[bit_idx] = DistBool(mgr, b) 
         i = i >> 1
     end
-    DistInt(mgr, bits)
+    DistInt(mgr, bits, DistBool(mgr, false))
+end
+
+function DistInt(mgr, bits::Vector)
+    DistInt(mgr, bits, DistBool(mgr, false))
 end
 
 function DistInt(bits::Vector)
-    DistInt(bits[1].mgr, bits)
+    DistInt(bits[1].mgr, bits, DistBool(bits[1].mgr, false))
 end
 
 function infer(d::DistInt)
@@ -31,7 +40,7 @@ function infer(d::DistInt)
     ans = Vector(undef, 2^mb)
     non_zero_index = 0
     for i=0:2^mb - 1
-        a = infer(prob_equals(d, i))
+        a = infer(prob_equals_ignore_error(d, DistInt(d.mgr, i)))
         if !(a ≈ 0)
             non_zero_index = i+1
         end
@@ -46,7 +55,7 @@ max_bits(i::DistInt) =
 # @inline flip(mgr, ::Type{DistInt}, bits::Int) =
 #     DistInt(mgr, [flip(mgr) for i = 1:bits])
 
-function prob_equals(x::DistInt, y::DistInt)
+function prob_equals_ignore_error(x::DistInt, y::DistInt)
     shared = min(max_bits(x), max_bits(y))
     eq = true
     for i=max_bits(x):-1:shared+1
@@ -65,6 +74,10 @@ function prob_equals(x::DistInt, y::DistInt)
     eq
 end
 
+function prob_equals(x::DistInt, y::DistInt)
+    DistBoolWithError(prob_equals_ignore_error(x, y), x.error | y.error)
+end
+
 prob_equals(x::DistInt, y::Int) = 
     prob_equals(x, DistInt(x.mgr, y))
 
@@ -72,29 +85,24 @@ prob_equals(x::Int, y::DistInt) =
     prob_equals(y, x)
 
 function ifelse(cond::DistBool, then::DistInt, elze::DistInt)
-    if isvalid(cond)
-        then
-    elseif !issat(cond)
-        elze
-    else
-        last_sat_bit = 1
-        mbthen, mbelze = max_bits(then), max_bits(elze)
-        mb = max(mbthen, mbelze)
-        z = Vector{DistBool}(undef, mb)
-        for i=1:mb
-            z[i] = if i > mbthen 
-                !cond & elze.bits[i]
-            elseif i > mbelze
-                 cond & then.bits[i]
-            else
-                ifelse(cond, then.bits[i], elze.bits[i])
-            end
-            if issat(z[i])
-                last_sat_bit = i
-            end
+    mbthen, mbelze = max_bits(then), max_bits(elze)
+    mb = max(mbthen, mbelze)
+    z = Vector{DistBool}(undef, mb)
+    for i=1:mb
+        z[i] = if i > mbthen 
+            !cond & elze.bits[i]
+        elseif i > mbelze
+            cond & then.bits[i]
+        else
+            ifelse(cond, then.bits[i], elze.bits[i])
         end
-        DistInt(cond.mgr, z[1:last_sat_bit])
     end
+    DistInt(cond.mgr, z, (cond & then.error) | (!cond & elze.error))
+end
+
+function ifelse(cond::DistBoolWithError, then::DistInt, elze::DistInt)
+    d = ifelse(cond.bit, then, elze)  # initially ignoring cond error
+    DistInt(d.mgr, d.bits, cond.error | d.error)
 end
 
 #TODO: Look for optimizations here
@@ -114,7 +122,7 @@ function Base.:>(x::DistInt, y::DistInt)
         eq |= ifelse(prop, ifelse(x.bits[i] & !y.bits[i], true, false), false)
         prop &= prob_equals(x.bits[i], y.bits[i])
     end
-    eq
+    DistBoolWithError(eq, x.error | y.error)
 end
 
 Base.:>(x::DistInt, y::Int) = x > DistInt(x.mgr, y)
@@ -150,7 +158,7 @@ function Base.:+(p1::DistInt, p2::DistInt)
         #     last_sat_bit = i
         # end
     end
-    DistInt(t1.mgr, z), carry
+    DistInt(t1.mgr, z, carry | p1.error | p2.error)
 end
 
 Base.:+(p1::DistInt, p2::Int) =
@@ -158,21 +166,6 @@ Base.:+(p1::DistInt, p2::Int) =
 
 Base.:+(p1::Int, p2::DistInt) = 
     DistInt(p2.mgr, p1) + p2
-
-function Base.:+(p1::Tuple{DistInt, DistBool}, p2::DistInt)
-    a = p1[1] + p2
-    a[1], a[2] | p1[2]
-end
-
-function Base.:+(p1::DistInt, p2::Tuple{DistInt, DistBool})
-    a = p1 + p2[1]
-    a[1], a[2] | p2[2]
-end
-
-function Base.:+(p2::Tuple{DistInt, DistBool}, p1::Tuple{DistInt, DistBool})
-    a = p1[1] + p2[1]
-    a[1], a[2] | p1[2] | p2[2]
-end
 
 function Base.:-(t1::DistInt, t2::DistInt)
     last_sat_bit = 0
@@ -195,13 +188,8 @@ function Base.:-(t1::DistInt, t2::DistInt)
         z[i] = (!t2.bits[i] & borrow) | (t2.bits[i] & !borrow)
         borrow = t2.bits[i] | borrow 
     end
-
-    for i = 1:mab
-        z[i] = ifelse(borrow, !z[i], z[i])
-    end
     
-    ans = ifelse(borrow, (DistInt(z) + 1)[1], DistInt(z))
-    ans, borrow
+    DistInt(t1.mgr, z, borrow | t1.error | t2.error)
 end
 
 Base.:-(p1::DistInt, p2::Int) =
@@ -234,10 +222,9 @@ function Base.:*(p1::DistInt, p2::DistInt)
         end
         added = ifelse(t2.bits[i], DistInt(p1.mgr, shifted_bits), DistInt(p1.mgr, 0))
         res = (P + added)
-        P = res[1]
-        carry |= res[2]
+        P = res
     end
-    P, carry
+    DistInt(P.mgr, P.bits, carry | P.error | p1.error | p2.error)
 end 
 
 Base.:*(p1::DistInt, p2::Int) =
@@ -245,21 +232,6 @@ Base.:*(p1::DistInt, p2::Int) =
 
 Base.:*(p1::Int, p2::DistInt) = 
     DistInt(p2.mgr, p1) * p2
-
-function Base.:*(p1::Tuple{DistInt, DistBool}, p2::DistInt)
-    a = p1[1] * p2
-    a[1], a[2] | p1[2]
-end
-
-function Base.:*(p1::DistInt, p2::Tuple{DistInt, DistBool})
-    a = p1 * p2[1]
-    a[1], a[2] | p2[2]
-end
-
-function Base.:*(p2::Tuple{DistInt, DistBool}, p1::Tuple{DistInt, DistBool})
-    a = p1[1] * p2[1]
-    a[1], a[2] | p1[2] | p2[2]
-end
 
 function Base.:/(p1::DistInt, p2::DistInt) #p1/p2
     mb1 = max_bits(p1)
@@ -280,7 +252,7 @@ function Base.:/(p1::DistInt, p2::DistInt) #p1/p2
     end
     p1_proxy = DistInt(p1.mgr, p1_bits)
     ans = vcat(ifelse(p2 > p1_proxy, DistBool(p1.mgr, false), DistBool(p1.mgr, true)), ans)
-    ifelse(is_zero, p2, DistInt(p1.mgr, ans)), is_zero
+    DistInt(p1.mgr, ans, is_zero | p1.error | p2.error)
 end 
 
 function Base.:%(p1::DistInt, p2::DistInt) #p1%p2
@@ -295,16 +267,16 @@ function Base.:%(p1::DistInt, p2::DistInt) #p1%p2
 
     for i = mb1:-1:1
         p1_proxy = DistInt(p1.mgr, p1_bits)
-        p1_bits = vcat(p1.bits[i], ifelse(p2 > p1_proxy, p1_proxy, (p1_proxy - p2)[1]).bits)
+        p1_bits = vcat(p1.bits[i], ifelse(p2 > p1_proxy, p1_proxy, p1_proxy - p2).bits)
     end
     p1_proxy = DistInt(p1.mgr, p1_bits)
-    p1_bits = ifelse(p2 > p1_proxy, p1_proxy, (p1_proxy - p2)[1]).bits
-    ifelse(is_zero, p2, DistInt(p1.mgr, p1_bits)), is_zero
+    p1_bits = ifelse(p2 > p1_proxy, p1_proxy, p1_proxy - p2).bits
+    DistInt(p1.mgr, p1_bits[1:mb1], is_zero | p1.error | p2.error)
     # DistInt(p1.mgr, p1_bits), DistBool(p1.mgr, false)
     # end
 end 
 
-bools(i::DistInt) = i.bits
+bools(i::DistInt) = [i.bits; [i.error]]
 
 #No safety checks yet
 function add_bits(p::DistInt, w::Int)
