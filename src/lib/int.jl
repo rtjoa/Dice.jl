@@ -134,6 +134,12 @@ Base.:>(x::DistInt, y::Int) = x > DistInt(x.mgr, y)
 
 Base.:>(x::Int, y::DistInt) = DistInt(y.mgr, x) > y
 
+Base.:<(x::DistInt, y::DistInt) = y > x
+
+Base.:<(x::Int, y::DistInt) = y > x
+
+Base.:<(x::DistInt, y::Int) = y > x
+
 # No canonical bitwidth
 function Base.:+(p1::DistInt, p2::DistInt)
     last_sat_bit = 0

@@ -34,6 +34,14 @@ function ifelse(cond::DistBool, then::DistChar, elze::DistChar)
     DistChar(cond.mgr, ifelse(cond, then.i, elze.i))
 end
 
-function Base.:>(x::DistChar, y::DistChar)
-    x.i > y.i
-end
+Base.:>(x::DistChar, y::DistChar) = x.i > y.i
+
+Base.:>(x::DistChar, y::Char) = x.i > DistChar(x.mgr, y).i
+
+Base.:>(x::Char, y::DistChar) = DistChar(y.mgr, x).i > y.i
+
+Base.:<(x::DistChar, y::DistChar) = y > x
+
+Base.:<(x::DistChar, y::Char) = y > x
+
+Base.:<(x::Char, y::DistChar) = y > x

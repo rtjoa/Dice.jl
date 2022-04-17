@@ -138,3 +138,25 @@ Base.:+(s::DistString, t::String) =
     
 Base.:+(s::String, t::DistString) =
     DistString(t.mgr, s) + t
+
+function Base.:>(s::DistString, t::DistString)
+    s_must_be_less = DistBool(s.mgr, false)
+    t_must_be_less = DistBool(s.mgr, false)
+    for i in 1:max(length(s.chars), length(t.chars))
+        s_char_less = ((i > s.len) & !(i > t.len)) | ((i + 1 < s.len) & (i + 1 < t.len) & (s[i] < t[i]))
+        t_char_less = ((i > t.len) & !(i > s.len)) | ((i + 1 < s.len) & (i + 1 < t.len) & (t[i] < s[i]))
+        s_must_be_less = s_must_be_less | (s_char_less & !t_must_be_less)
+        t_must_be_less = t_must_be_less | (t_char_less & !s_must_be_less)
+    end
+    t_must_be_less
+end
+
+Base.:>(x::DistString, y::String) = x > DistString(x.mgr, y)
+
+Base.:>(x::String, y::DistString) = DistString(y.mgr, x) > y
+
+Base.:<(x::DistString, y::DistString) = y > x
+
+Base.:<(x::String, y::DistString) = y > x
+
+Base.:<(x::DistString, y::String) = y > x
