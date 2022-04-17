@@ -15,15 +15,10 @@ function DistChar(mgr, c::Char)
     DistChar(mgr, DistInt(mgr, char_idx[c]))
 end
 
-function infer(d::DistChar)
-    ans = Dict{Char,Float64}()
-    for c in valid_chars
-        p = infer(prob_equals(d, c))
-        if !(p ≈ 0)
-            ans[c] = p
-        end
+function group_infer(f, d::DistChar, prior, prior_p::Float64)
+    group_infer(d.i, prior, prior_p) do n, new_prior, p
+        f(valid_chars[n+1], new_prior, p)
     end
-    ans
 end
 
 prob_equals(x::DistChar, y::DistChar) =

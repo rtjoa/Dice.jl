@@ -11,10 +11,13 @@ function DistString(mgr, s::String)
     DistString(mgr, [DistChar(mgr, c) for c in s], DistInt(mgr, length(s)))
 end
 
-# function infer(d::DistString)
-#     ans = Dict{String,Float64}()
-#     ans
-# end
+function group_infer(f, d::DistString, prior, prior_p::Float64)
+    group_infer(d.len, prior, prior_p) do len, len_prior, len_p
+        group_infer(d.chars[1:len], len_prior, len_p) do chars, chars_prior, chars_p
+            f(join(chars), chars_prior, chars_p)
+        end
+    end
+end
 
 function prob_equals(x::DistString, y::DistString)
     res = prob_equals(x.len, y.len)
