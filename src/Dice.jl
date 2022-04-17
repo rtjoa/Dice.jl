@@ -10,6 +10,7 @@ include("ocaml.jl")
 
 include("lib/int.jl")
 include("lib/char.jl")
+include("lib/string.jl")
 include("lib/cond.jl")
 # include("lib/tuple.jl")
 
