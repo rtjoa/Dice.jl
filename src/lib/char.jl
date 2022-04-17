@@ -3,7 +3,7 @@
 export DistChar
 
 # every single character. there aren't any others. :)
-valid_chars = ['a':'z';'A':'Z';[' ',',','.','\'','"','!','?','(',')','\n']]
+valid_chars = ['a':'z';'A':'Z';[' ',',','.','\'','"','!','?','(',')','\n','_']]
 char_idx = Dict((c, i-1) for (i , c) in enumerate(valid_chars))
 
 struct DistChar

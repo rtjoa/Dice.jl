@@ -1,6 +1,6 @@
 import IfElse: ifelse
 
-export Dist, DistBool, prob_equals, infer, ifelse
+export Dist, DistBool, prob_equals, infer, ifelse, observe
 
 "A probability distribution over values of type `T`"
 abstract type Dist{T} end
@@ -87,4 +87,7 @@ rundice(d::DistBool) =
 infer(d::DistBool) =
     infer(d.mgr, d.bit)
 
+function observe(mgr, d::DistBool)
+    mgr.observe_bit = conjoin(mgr, mgr.observe_bit, d.bit)
+end
 

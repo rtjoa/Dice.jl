@@ -5,12 +5,13 @@ using CUDD
 mutable struct CuddMgr <: DiceManager
     cuddmgr::Ptr{Nothing}
     probs::Dict{Int,Float64}
+    observe_bit
 end
 
 function CuddMgr() 
     cudd_mgr = initialize_cudd()
     Cudd_DisableGarbageCollection(cudd_mgr) # note: still need to ref because CUDD can delete nodes without doing a GC pass
-    mgr = CuddMgr(cudd_mgr, Dict{Int,Float64}())
+    mgr = CuddMgr(cudd_mgr, Dict{Int,Float64}(), Cudd_ReadOne(cudd_mgr))
     finalizer(mgr) do x
         Cudd_Quit(x.cuddmgr)
     end
@@ -45,6 +46,14 @@ new_var(mgr::CuddMgr, prob) = begin
 end
 
 function infer(mgr::CuddMgr, x)
+    denom = infer_raw(mgr, mgr.observe_bit)
+    if denom == 0
+        return 0
+    end
+    infer_raw(mgr, conjoin(mgr, x, mgr.observe_bit)) / denom
+end
+
+function infer_raw(mgr::CuddMgr, x)
     
     cache = Dict{Tuple{Ptr{Nothing},Bool},Float64}()
     t = constant(mgr, true)
