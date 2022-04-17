@@ -90,12 +90,26 @@ function Base.getindex(s::DistString, idx::DistInt)
     res
 end
 
+function Base.getindex(s::DistString, idx::Int)
+    s.chars[idx]
+end
+
 function prob_setindex(s::DistString, idx::DistInt, c::DistChar)
     chars = collect(s.chars)
     for i = 1:length(s.chars)
         chars[i] = ifelse(prob_equals(idx, i), c, s.chars[i])
     end
     DistString(s.mgr, chars, s.len)
+end
+
+function prob_setindex(s::DistString, idx::Int, c::DistChar)
+    chars = collect(s.chars)
+    chars[idx] = c
+    DistString(s.mgr, chars, s.len)
+end
+
+function prob_setindex(s::DistString, idx, c::Char)
+    prob_setindex(s, idx, DistChar(s.mgr, c))
 end
 
 # Only works in straightline code, needs more code transformation, non-functional ifs, etc.
