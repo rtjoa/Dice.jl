@@ -1,13 +1,25 @@
 using Dice
+include("util.jl")
 
 code = @dice begin
     s = if flip(3/5) DistString("sand") else DistString("san") end
     s = if flip(2/3) s + 'd' else s end
     t = if flip(1/10) DistString("wich") else DistString("box") end
-    prob_equals(s + t, "sandwich")
+    s + t
 end
 bdd = compile(code)
-@assert infer(bdd) ≈ 3/5*1/3*1/10 + 2/5*2/3*1/10
+@assert dict_isapprox(
+    infer(bdd),
+    Dict([
+        ("sandwich", 7/150),
+        ("sandbox", 21/50),
+        ("sanwich", 1/75),
+        ("sanbox", 3/25),
+        ("sanddwich", 1/25),
+        ("sanddbox", 9/25)
+    ])
+)
+@assert infer(prob_equals(bdd, "sandwich")) ≈ 7/150
 
 code = @dice begin
     s = if flip(0.6) DistString("abc") else DistString("xyz") end
