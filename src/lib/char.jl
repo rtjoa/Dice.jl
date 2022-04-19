@@ -37,3 +37,6 @@ end
 function Base.:>(x::DistChar, y::DistChar)
     x.i > y.i
 end
+
+bools(c::DistChar) =
+    bools(c.i)

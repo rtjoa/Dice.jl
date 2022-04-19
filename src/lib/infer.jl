@@ -35,3 +35,6 @@ function group_infer(f, d::DistBool, prior, prior_p::Float64)
         f(false, !d & prior, prior_p - p)
     end
 end
+
+bools(v::AbstractVector) =
+    collect(Iterators.flatten(bools(x) for x in v))

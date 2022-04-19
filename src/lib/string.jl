@@ -124,3 +124,6 @@ Base.:+(s::DistString, t::String) =
     
 Base.:+(s::String, t::DistString) =
     DistString(t.mgr, s) + t
+
+bools(s::DistString) =
+    vcat(collect(Iterators.flatten(bools(c) for c in s.chars)), bools(s.len))
