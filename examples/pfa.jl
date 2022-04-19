@@ -18,7 +18,7 @@ machine = Dict([  # List of transitions
 
 start = 1
 acceptors = [4]
-num_steps = 10
+num_steps = 15
 top_n = 20  # Only the top_n most likely strings are printed
 
 code = @dice begin
@@ -62,7 +62,7 @@ code = @dice begin
 end
 
 bdd = compile(code)
-inference_dict = infer(bdd)
+@time inference_dict = infer(bdd)
 
 # All the hard work is done, just print inference_dict nicely
 non_accepting_p = 0
@@ -85,27 +85,27 @@ print_dict(dist[1:min(length(dist),top_n)])
 println("$(num_nodes(bdd)) nodes, $(num_flips(bdd)) flips")
 
 #==
-Probability of not reaching accepting state in 10 steps: 0.11918356479999805
+Probability of not reaching accepting state in 15 steps: 0.03753876196560418
 Vector{Tuple{SubString{String}, Float64}} with 20 entries
-   il    => 0.15
-   al    => 0.09000000000000001
-   ime   => 0.075
-   ame   => 0.045000000000000005
-   til   => 0.029999999999999995
-   isil  => 0.029999999999999995
-   asil  => 0.018000000000000002
-   tal   => 0.018000000000000002
-   isal  => 0.018000000000000002
-   isime => 0.014999999999999998
-   time  => 0.014999999999999998
-   imoil => 0.01125
-   asal  => 0.010800000000000002
-   isame => 0.009
-   tame  => 0.009
-   asime => 0.009
-   amoil => 0.006750000000000001
-   imoal => 0.006750000000000001
-   ttil  => 0.005999999999999998
-   tisil => 0.005999999999999998
-1156 nodes, 46 flips
+   il     => 0.15
+   al     => 0.09000000000000001
+   ime    => 0.075
+   ame    => 0.045000000000000005
+   isil   => 0.029999999999999995
+   til    => 0.029999999999999995
+   isal   => 0.018000000000000002
+   asil   => 0.018000000000000002
+   tal    => 0.018000000000000002
+   time   => 0.014999999999999998
+   isime  => 0.014999999999999998
+   imoil  => 0.01125
+   asal   => 0.010800000000000002
+   tame   => 0.009
+   isame  => 0.009
+   asime  => 0.009
+   imoal  => 0.006750000000000001
+   amoil  => 0.006750000000000001
+   isisil => 0.005999999999999998
+   ttil   => 0.005999999999999998
+2841 nodes, 71 flips
 ==#
