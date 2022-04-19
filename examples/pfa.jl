@@ -1,62 +1,111 @@
 using Dice
+using Dice: num_nodes, num_flips
+include("util.jl")
 
 machine = Dict([  # List of transitions
     (1,  # Start state of edge
-        [(2, 'm', 0.7),  # End state of edge, character, probability of taking
-        (3, 'a', 0.3)]),
+        [(2, 'a', 0.3),  # End state of edge, character, probability of taking
+        (2, 'i', 0.5),
+        (1, 't', 0.2)]),
     (2,
-        [(3, 'n', 0.2),
-        (4, 'a', 0.8)]),
+        [(1, 's', 0.4),
+        (3, 'm', 0.3),
+        (4, 'l', 0.3)]),
     (3,
-        [(2, 'a', 1.0)])
+        [(1, 'o', 0.5),
+        (4, 'e', 0.5)])
 ])
 
 start = 1
-num_steps = 7
+acceptors = [4]
+num_steps = 10
+top_n = 20  # Only the top_n most likely strings are printed
 
 code = @dice begin
+    str = Vector(undef, num_steps)
     state = DistInt(start)
-    str = DistString("")
-    for _ in 1:num_steps
+
+    for step_i in 1:num_steps
+        c = DistChar(' ')  # Char to add this step (won't update if no available transitions)
+        next_state = state  # Next state (won't update if no available transitions)
         # Consider each state we can be at
         for (state1, transitions) in machine
-            # Consider each transition we can take from this state
-            total_p = 1.0
-            cand_state = DistInt(last(transitions)[1])
-            cand_str = str + last(transitions)[2]
-            have_taken = DistBool(dicecontext(), false)
-            for (state2, c, p) in @view transitions[1:length(transitions) - 1]
-                take = !have_taken & flip(p/total_p)
-                have_taken = have_taken | take
-                total_p -= p
-                cand_state = if take DistInt(state2) else cand_state end
-                cand_str = if take str + c else cand_str end
+            # Use SBK to choose which transition to take from this state
+
+            # Find flip weights
+            v = Vector(undef, length(transitions))
+            s = 1.
+            for (i, (_, _, p)) in reverse(collect(enumerate(transitions)))
+                v[i] = p/s
+                s -= p
             end
+
+            # Find next state and char we would append
+            cand_state = DistInt(transitions[1][1])
+            cand_c = DistChar(transitions[1][2])
+            for i in 2:length(transitions)
+                (state2, char_label, p) = transitions[i]
+                take = flip(v[i])
+                cand_state = if take DistInt(state2) else cand_state end
+                cand_c = if take DistChar(char_label) else cand_c end
+            end
+
             state_matches = prob_equals(state, state1)
             # Only update if our current state matches state1
-            # Note that this means we do not update if we are at the end
-            state = if state_matches cand_state else state end
-            str = if state_matches cand_str else str end
+            next_state = if state_matches cand_state else next_state end
+            c = if state_matches cand_c else c end
         end
+        str[step_i] = c
+        state = next_state
     end
     [state, str]
 end
+
 bdd = compile(code)
-dist = infer(bdd)
-@show sort(dist, by= x->-x, byvalue=true)  # Display in order of decreasing probability
+inference_dict = infer(bdd)
+
+# All the hard work is done, just print inference_dict nicely
+non_accepting_p = 0
+dist = Dict()
+for (state_str, p) in inference_dict
+    state, str = state_str[1], strip(join(state_str[2]))
+    if state in acceptors
+        if !haskey(dist, str)
+            dist[str] = 0
+        end
+        dist[str] += p
+    else
+        non_accepting_p += p
+    end
+end
+
+println("Probability of not reaching accepting state in $(num_steps) steps: $(non_accepting_p)")
+dist = sort([(x, val) for (x, val) in dist], by= xv -> -xv[2])  # by decreasing probability
+print_dict(dist[1:min(length(dist),top_n)])
+println("$(num_nodes(bdd)) nodes, $(num_flips(bdd)) flips")
+
 #==
-OrderedCollections.OrderedDict{Any, Any} with 13 entries:
-  Any[4, "ma"]            => 0.56
-  Any[4, "aaa"]           => 0.24
-  Any[4, "mnaa"]          => 0.112
-  Any[4, "aanaa"]         => 0.048
-  Any[4, "mnanaa"]        => 0.0224
-  Any[4, "aananaa"]       => 0.0096
-  Any[4, "mnananaa"]      => 0.00448
-  Any[4, "aanananaa"]     => 0.00192
-  Any[4, "mnanananaa"]    => 0.000896
-  Any[4, "aananananaa"]   => 0.000384
-  Any[4, "mnananananaa"]  => 0.0001792
-  Any[2, "aananananana"]  => 9.6e-5
-  Any[2, "mnananananana"] => 4.48e-5
+Probability of not reaching accepting state in 10 steps: 0.11918356479999805
+Vector{Tuple{SubString{String}, Float64}} with 20 entries
+   il    => 0.15
+   al    => 0.09000000000000001
+   ime   => 0.075
+   ame   => 0.045000000000000005
+   til   => 0.029999999999999995
+   isil  => 0.029999999999999995
+   asil  => 0.018000000000000002
+   tal   => 0.018000000000000002
+   isal  => 0.018000000000000002
+   isime => 0.014999999999999998
+   time  => 0.014999999999999998
+   imoil => 0.01125
+   asal  => 0.010800000000000002
+   isame => 0.009
+   tame  => 0.009
+   asime => 0.009
+   amoil => 0.006750000000000001
+   imoal => 0.006750000000000001
+   ttil  => 0.005999999999999998
+   tisil => 0.005999999999999998
+1156 nodes, 46 flips
 ==#
