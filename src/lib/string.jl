@@ -48,27 +48,6 @@ function ifelse(cond::DistBool, then::DistString, elze::DistString)
     DistString(cond.mgr, chars, ifelse(cond, then.len, elze.len))
 end
 
-# Quick int utilities for now. Will probably change when we figure out error handling
-function safe_inc(d::DistInt)
-    d_inc, carry = d + 1
-    if issat(carry)
-        return DistInt(d.mgr, [d_inc.bits;carry])
-    end
-    d_inc
-end
-
-function safe_add(x::DistInt, y::DistInt)
-    if max_bits(x) > max_bits(y)
-        x, y = y, x
-    end
-    z, carry = x + y
-    while issat(carry)
-        x, y = add_bits(x, 1), y
-        z, carry = x + y
-    end
-    z
-end
-
 function Base.:+(s::DistString, c::DistChar)
     chars = Vector(undef, length(s.chars) + 1)
     for i = 1:length(s.chars)
@@ -81,13 +60,22 @@ end
 Base.:+(s::DistString, c::Char) =
     s + DistChar(s.mgr, c)
 
-# Consider divide and conquer? Reverse order?
-function Base.getindex(s::DistString, idx::DistInt)
-    res = s.chars[1]
-    for i = 2:length(s.chars)
-        res = ifelse(prob_equals(idx, i), s.chars[i], res)
+# Divide-and-conquer getindex
+function Base.getindex(d::DistString, idx::DistInt)
+    function helper(i, v)
+        if v >= length(d.chars)
+            return last(d.chars)
+        end
+        if i > length(idx.bits)
+            return if v == 0
+                last(d.chars)  # This could be anything, just to prevent index error 
+            else
+                d.chars[v]
+            end
+        end
+        ifelse(idx.bits[i], helper(i+1, v+2^(i-1)), helper(i+1, v))
     end
-    res
+    return helper(1, 0)
 end
 
 function Base.getindex(s::DistString, idx::Int)

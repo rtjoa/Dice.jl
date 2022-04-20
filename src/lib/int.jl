@@ -334,6 +334,24 @@ function add_bits(p::DistInt, w::Int)
     end
     DistInt(p.mgr, vcat(p.bits, ext))
 end
-    
 
+# Quick int utilities for now. Will probably change when we figure out error handling
+function safe_inc(d::DistInt)
+    d_inc, carry = d + 1
+    if issat(carry)
+        return DistInt(d.mgr, [d_inc.bits;carry])
+    end
+    d_inc
+end
 
+function safe_add(x::DistInt, y::DistInt)
+    if max_bits(x) > max_bits(y)
+        x, y = y, x
+    end
+    z, carry = x + y
+    while issat(carry)
+        x, y = add_bits(x, 1), y
+        z, carry = x + y
+    end
+    z
+end
