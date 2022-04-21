@@ -5,7 +5,7 @@ include("util.jl")
 machine = Dict([  # List of transitions
     (1,  # Start state of edge
         [(2, 'a', 0.3),  # End state of edge, character, probability of taking
-        (2, 'i', 0.5),
+        (2, '.', 0.5),  # epsilon transition
         (1, 't', 0.2)]),
     (2,
         [(1, 's', 0.4),
@@ -18,13 +18,12 @@ machine = Dict([  # List of transitions
 
 start = 1
 acceptors = [4]
-num_steps = 15
+num_steps = 10
 top_n = 20  # Only the top_n most likely strings are printed
 
 code = @dice begin
-    str = Vector(undef, num_steps)
+    str = DistString("")
     state = DistInt(start)
-
     for step_i in 1:num_steps
         c = DistChar(' ')  # Char to add this step (won't update if no available transitions)
         next_state = state  # Next state (won't update if no available transitions)
@@ -55,7 +54,7 @@ code = @dice begin
             next_state = if state_matches cand_state else next_state end
             c = if state_matches cand_c else c end
         end
-        str[step_i] = c
+        str = if prob_equals(c, '.') str else str + c end
         state = next_state
     end
     [state, str]
@@ -68,7 +67,7 @@ bdd = compile(code)
 non_accepting_p = 0
 dist = Dict()
 for (state_str, p) in inference_dict
-    state, str = state_str[1], strip(join(state_str[2]))
+    state, str = state_str[1], strip(state_str[2])
     if state in acceptors
         if !haskey(dist, str)
             dist[str] = 0
@@ -85,27 +84,27 @@ print_dict(dist[1:min(length(dist),top_n)])
 println("$(num_nodes(bdd)) nodes, $(num_flips(bdd)) flips")
 
 #==
-Probability of not reaching accepting state in 15 steps: 0.03753876196560418
+Probability of not reaching accepting state in 10 steps: 0.11918356479999795
 Vector{Tuple{SubString{String}, Float64}} with 20 entries
-   il     => 0.15
-   al     => 0.09000000000000001
-   ime    => 0.075
-   ame    => 0.045000000000000005
-   isil   => 0.029999999999999995
-   til    => 0.029999999999999995
-   isal   => 0.018000000000000002
-   asil   => 0.018000000000000002
-   tal    => 0.018000000000000002
-   time   => 0.014999999999999998
-   isime  => 0.014999999999999998
-   imoil  => 0.01125
-   asal   => 0.010800000000000002
-   tame   => 0.009
-   isame  => 0.009
-   asime  => 0.009
-   imoal  => 0.006750000000000001
-   amoil  => 0.006750000000000001
-   isisil => 0.005999999999999998
-   ttil   => 0.005999999999999998
-2841 nodes, 71 flips
+   l    => 0.15
+   al   => 0.09000000000000001
+   me   => 0.075
+   ame  => 0.045000000000000005
+   tl   => 0.029999999999999995
+   sl   => 0.029999999999999995
+   asl  => 0.018000000000000002
+   sal  => 0.018000000000000002
+   tal  => 0.018000000000000002
+   sme  => 0.014999999999999998
+   tme  => 0.014999999999999998
+   mol  => 0.01125
+   asal => 0.010800000000000002
+   tame => 0.009
+   same => 0.009
+   asme => 0.009
+   amol => 0.006750000000000001
+   moal => 0.006750000000000001
+   tsl  => 0.005999999999999998
+   stl  => 0.005999999999999998
+3266 nodes, 46 flips
 ==#
