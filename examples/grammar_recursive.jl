@@ -28,41 +28,39 @@ top_n = 40  # Only the top_n most likely strings are printed
 code = @dice begin
     function expand_term(lhs, max_depth)
         if lhs in terminals
-            return DistVector([DistEnum(terms_enum, lhs)]), DistBool(dicecontext(), false)
-        else end  # To appease "only supports purely functional if-then-else" assert
-        if max_depth == 0
-            return DistVector([]), DistBool(dicecontext(), true)
-        else end  # To appease only supports purely functional if-then-else" assert
-
-        expansion_error_tups = []
-        for (rhs, p) in rules[lhs]
-            expansion = DistVector([])
-            error = DistBool(dicecontext(), false)
-            for subterm in rhs
-                x = expand_term(subterm, max_depth - 1)
-                expansion, error = prob_extend(expansion, x[1]), error | x[2] 
+            DistVector([DistEnum(terms_enum, lhs)]), DistBool(dicecontext(), false)
+        elseif max_depth == 0
+            DistVector([]), DistBool(dicecontext(), true)
+        else
+            expansion_error_tups = []
+            for (rhs, p) in rules[lhs]
+                expansion = DistVector([])
+                error = DistBool(dicecontext(), false)
+                for subterm in rhs
+                    x = expand_term(subterm, max_depth - 1)
+                    expansion, error = prob_extend(expansion, x[1]), error | x[2] 
+                end
+                push!(expansion_error_tups, (expansion, error))
             end
-            push!(expansion_error_tups, (expansion, error))
-        end
-        
-        # Find flip weights
-        v = Vector(undef, length(rules[lhs]))
-        s = 1.
-        for (i, (rhs, p)) in reverse(collect(enumerate(rules[lhs])))
-            v[i] = p/s
-            s -= p
-        end
+            
+            # Find flip weights
+            v = Vector(undef, length(rules[lhs]))
+            s = 1.
+            for (i, (rhs, p)) in reverse(collect(enumerate(rules[lhs])))
+                v[i] = p/s
+                s -= p
+            end
 
-        # Choose rhs
-        rhs, error = expansion_error_tups[1]
-        for i in 2:length(rules[lhs])
-            f = flip(v[i])
-            rhs = if f expansion_error_tups[i][1] else rhs end
-            error = if f expansion_error_tups[i][2] else error end
+            # Choose rhs
+            rhs, error = expansion_error_tups[1]
+            for i in 2:length(rules[lhs])
+                f = flip(v[i])
+                rhs = if f expansion_error_tups[i][1] else rhs end
+                error = if f expansion_error_tups[i][2] else error end
+            end
+            rhs, error
         end
-        rhs, error
     end
-    
     rhs, error = expand_term(start_term, num_steps)
     [rhs, error]
 end
