@@ -86,6 +86,9 @@ function prob_setindex(d::DistVector, idx::DistInt, x)
 end
 
 function prob_extend(u::DistVector, v::DistVector)
+    if length(v.contents) == 0
+        return u
+    end
     len = safe_add(u.len, v.len)
     contents = Vector(undef, length(u.contents) + length(v.contents))
     for i = 1:length(contents)
