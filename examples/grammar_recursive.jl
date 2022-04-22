@@ -62,68 +62,72 @@ code = @dice begin
         end
     end
     rhs, error = expand_term(start_term, num_steps)
-    [rhs, error]
+    observe = (rhs.len > 2) & prob_equals(rhs[2], DistEnum(terms_enum, "and"))
+    (rhs, error, observe)
 end
-bdd = compile(code)
+rhs_bdd, error_bdd, observe_bdd = compile(code)
 error_p = 0
 dist = Dict()
-group_infer(bdd[2], true, 1.0) do error, prior, p
-    if error
-        # We don't care about rhs if there is error; normally we would call group_infer again
-        global error_p = p 
-    else
-        group_infer(bdd[1], prior, p) do assignment, _, p
-            dist[assignment] = p
+group_infer(observe_bdd, true, 1.0) do observe, observe_prior, denom
+    if !observe return end
+    group_infer(error_bdd, observe_prior, denom) do error, prior, p
+        if error
+            # We don't care about rhs if there is error; normally we would call group_infer again
+            global error_p = p/denom
+        else
+            group_infer(rhs_bdd, prior, p) do assignment, _, p
+                dist[assignment] = p/denom
+            end
         end
     end
 end
 println("Probability of error: $(error_p)")
 dist = sort([(x, val) for (x, val) in dist], by= xv -> -xv[2])  # by decreasing probability
 print_dict(dist[1:min(length(dist),top_n)])
-println("$(num_nodes(bdd)) nodes, $(num_flips(bdd)) flips")
+println("$(num_nodes([rhs_bdd, error_bdd, error_bdd])) nodes, $(num_flips([rhs_bdd, error_bdd, error_bdd])) flips")
 
 #==
-Probability of error: 0.011999999999999999
+Probability of error: 0.011999999999999997
 Vector{Tuple{Vector{Any}, Float64}} with 40 entries
-   Any["Alice", "saw"]                               => 0.168
-   Any["Bob", "saw"]                                 => 0.168
-   Any["Bob", "ran"]                                 => 0.11199999999999996 
-   Any["Alice", "ran"]                               => 0.11199999999999996 
-   Any["Bob", "saw", "Bob"]                          => 0.028800000000000006
-   Any["Bob", "saw", "Alice"]                        => 0.028800000000000006
-   Any["Alice", "saw", "Alice"]                      => 0.028800000000000006
-   Any["Alice", "saw", "Bob"]                        => 0.028800000000000006
-   Any["Bob", "ran", "Alice"]                        => 0.0192
-   Any["Bob", "ran", "Bob"]                          => 0.0192
-   Any["Alice", "ran", "Alice"]                      => 0.0192
-   Any["Alice", "ran", "Bob"]                        => 0.0192
-   Any["Bob", "and", "Alice", "saw"]                 => 0.013439999999999999
-   Any["Alice", "and", "Alice", "saw"]               => 0.013439999999999999
-   Any["Bob", "and", "Bob", "saw"]                   => 0.013439999999999999
-   Any["Alice", "and", "Bob", "saw"]                 => 0.013439999999999999
-   Any["Bob", "and", "Alice", "ran"]                 => 0.008959999999999994
-   Any["Alice", "and", "Alice", "ran"]               => 0.008959999999999994
-   Any["Alice", "and", "Bob", "ran"]                 => 0.008959999999999994
-   Any["Bob", "and", "Bob", "ran"]                   => 0.008959999999999994
-   Any["Alice", "and", "Alice", "saw", "Bob"]        => 0.002304
-   Any["Alice", "saw", "Bob", "and", "Alice"]        => 0.002304
-   Any["Bob", "and", "Alice", "saw", "Alice"]        => 0.002304
-   Any["Alice", "and", "Bob", "saw", "Alice"]        => 0.002304
-   Any["Bob", "saw", "Bob", "and", "Bob"]            => 0.002304
-   Any["Alice", "saw", "Alice", "and", "Alice"]      => 0.002304
-   Any["Bob", "and", "Alice", "saw", "Bob"]          => 0.002304
-   Any["Bob", "and", "Bob", "saw", "Alice"]          => 0.002304
-   Any["Bob", "saw", "Bob", "and", "Alice"]          => 0.002304
-   Any["Bob", "saw", "Alice", "and", "Bob"]          => 0.002304
-   Any["Bob", "saw", "Alice", "and", "Alice"]        => 0.002304
-   Any["Alice", "and", "Bob", "saw", "Bob"]          => 0.002304
-   Any["Alice", "saw", "Bob", "and", "Bob"]          => 0.002304
-   Any["Alice", "saw", "Alice", "and", "Bob"]        => 0.002304
-   Any["Bob", "and", "Bob", "saw", "Bob"]            => 0.002304
-   Any["Alice", "and", "Alice", "saw", "Alice"]      => 0.002304
-   Any["Bob", "and", "Bob", "and", "Bob", "saw"]     => 0.0021504
-   Any["Bob", "and", "Alice", "and", "Bob", "saw"]   => 0.0021504
-   Any["Alice", "and", "Alice", "and", "Bob", "saw"] => 0.0021504
-   Any["Bob", "and", "Alice", "and", "Alice", "saw"] => 0.0021504
+   Any["Bob", "and", "Alice", "saw"]                   => 0.0672
+   Any["Alice", "and", "Alice", "saw"]                 => 0.0672
+   Any["Bob", "and", "Bob", "saw"]                     => 0.0672
+   Any["Alice", "and", "Bob", "saw"]                   => 0.0672
+   Any["Bob", "and", "Alice", "ran"]                   => 0.044799999999999965
+   Any["Alice", "and", "Alice", "ran"]                 => 0.044799999999999965
+   Any["Alice", "and", "Bob", "ran"]                   => 0.044799999999999965
+   Any["Bob", "and", "Bob", "ran"]                     => 0.044799999999999965
+   Any["Alice", "and", "Alice", "saw", "Bob"]          => 0.011519999999999999
+   Any["Bob", "and", "Alice", "saw", "Alice"]          => 0.011519999999999999
+   Any["Alice", "and", "Bob", "saw", "Alice"]          => 0.011519999999999999
+   Any["Bob", "and", "Alice", "saw", "Bob"]            => 0.011519999999999999
+   Any["Bob", "and", "Bob", "saw", "Alice"]            => 0.011519999999999999
+   Any["Alice", "and", "Bob", "saw", "Bob"]            => 0.011519999999999999
+   Any["Bob", "and", "Bob", "saw", "Bob"]              => 0.011519999999999999
+   Any["Alice", "and", "Alice", "saw", "Alice"]        => 0.011519999999999999
+   Any["Bob", "and", "Bob", "and", "Bob", "saw"]       => 0.010751999999999998
+   Any["Bob", "and", "Alice", "and", "Bob", "saw"]     => 0.010751999999999998
+   Any["Alice", "and", "Alice", "and", "Bob", "saw"]   => 0.010751999999999998
+   Any["Bob", "and", "Alice", "and", "Alice", "saw"]   => 0.010751999999999998
+   Any["Alice", "and", "Bob", "and", "Bob", "saw"]     => 0.010751999999999998
+   Any["Alice", "and", "Bob", "and", "Alice", "saw"]   => 0.010751999999999998
+   Any["Bob", "and", "Bob", "and", "Alice", "saw"]     => 0.010751999999999998
+   Any["Alice", "and", "Alice", "and", "Alice", "saw"] => 0.010751999999999998
+   Any["Alice", "and", "Bob", "ran", "Bob"]            => 0.007679999999999998
+   Any["Bob", "and", "Bob", "ran", "Alice"]            => 0.007679999999999998
+   Any["Bob", "and", "Bob", "ran", "Bob"]              => 0.007679999999999998
+   Any["Alice", "and", "Alice", "ran", "Alice"]        => 0.007679999999999998
+   Any["Bob", "and", "Alice", "ran", "Alice"]          => 0.007679999999999998
+   Any["Alice", "and", "Alice", "ran", "Bob"]          => 0.007679999999999998
+   Any["Alice", "and", "Bob", "ran", "Alice"]          => 0.007679999999999998
+   Any["Bob", "and", "Alice", "ran", "Bob"]            => 0.007679999999999998
+   Any["Bob", "and", "Bob", "and", "Alice", "ran"]     => 0.007167999999999994
+   Any["Bob", "and", "Alice", "and", "Bob", "ran"]     => 0.007167999999999994
+   Any["Bob", "and", "Alice", "and", "Alice", "ran"]   => 0.007167999999999994
+   Any["Alice", "and", "Alice", "and", "Alice", "ran"] => 0.007167999999999994
+   Any["Bob", "and", "Bob", "and", "Bob", "ran"]       => 0.007167999999999994
+   Any["Alice", "and", "Bob", "and", "Bob", "ran"]     => 0.007167999999999994
+   Any["Alice", "and", "Bob", "and", "Alice", "ran"]   => 0.007167999999999994
+   Any["Alice", "and", "Alice", "and", "Bob", "ran"]   => 0.007167999999999994
 137 nodes, 23 flips
 ==#
