@@ -62,6 +62,9 @@ Base.:+(s::DistString, c::Char) =
 
 # Divide-and-conquer getindex
 function Base.getindex(d::DistString, idx::DistInt)
+    if length(d.chars) == 0
+        return DistChar(d.mgr, 'a')  # To prevent runtime index errors
+    end
     function helper(i, v)
         if v >= length(d.chars)
             return last(d.chars)
