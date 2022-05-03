@@ -42,7 +42,7 @@ function ifelse(cond::DistBool, then::DistVector, elze::DistVector)
         elseif i > length(elze.contents)
             v[i] = then.contents[i]
         else
-            v[i] = ifelse(cond, then.contents[i], elze.contents[i])
+            v[i] = DistITE(cond.mgr, cond, then.contents[i], elze.contents[i])
         end
     end
     DistVector(cond.mgr, v, ifelse(cond, then.len, elze.len))
@@ -51,7 +51,7 @@ end
 function prob_append(d::DistVector, x)
     v = Vector(undef, length(d.contents) + 1)
     for i = 1:length(d.contents)
-        v[i] = ifelse(prob_equals(d.len, i-1), x, d.contents[i])
+        v[i] = DistITE(d.mgr, prob_equals(d.len, i-1), x, d.contents[i])
     end
     v[length(d.contents) + 1] = x
     DistVector(d.mgr, v, safe_inc(d.len))
@@ -71,7 +71,7 @@ function Base.getindex(d::DistVector, idx::DistInt)
                 d.contents[v]
             end
         end
-        ifelse(idx.bits[i], helper(i+1, v+2^(i-1)), helper(i+1, v))
+        DistITE(d.mgr, idx.bits[i], helper(i+1, v+2^(i-1)), helper(i+1, v))
     end
     return helper(1, 0)
 end
@@ -84,7 +84,7 @@ Base.getindex(d::DistVector, idx::Int) =
 function prob_setindex(d::DistVector, idx::DistInt, x)
     contents = Vector(undef, length(d.contents))
     for i = 1:length(contents)
-        contents[i] = ifelse(prob_equals(idx, i), x, d.contents[i])
+        contents[i] = DistIte(d.mgr, prob_equals(idx, i), x, d.contents[i])
     end
     DistVector(d.mgr, contents, d.len)
 end
@@ -97,7 +97,7 @@ function prob_extend(u::DistVector, v::DistVector)
     contents = Vector(undef, length(u.contents) + length(v.contents))
     for i = 1:length(contents)
         if i <= length(u.contents)
-            contents[i] = ifelse(u.len > (i - 1), u.contents[i], v[(i - u.len)[1]])
+            contents[i] = DistITE(u.mgr, u.len > (i - 1), u.contents[i], v[(i - u.len)[1]])
         else
             # Subtraction could overflow, but we don't care - accessing chars beyond len is UB
             contents[i] = v[(i - u.len)[1]]
