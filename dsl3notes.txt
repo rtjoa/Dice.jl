@@ -1,0 +1,102 @@
+original ir:
+
+1: (%1, %2, %3)
+  %4 = %3 * 0.5
+  br 3 (%4) unless %2
+  br 2 (%4)
+2: (%8)
+  %5 = 0.4 + %8
+  return %5
+3: (%7)
+  %6 = 0.1 + %7
+  return %6
+
+1: (%1, %2, %3)
+  %4 = %3 * 0.5
+  %100 = 
+  br 3 (%4) unless %2
+  br 2 (%4, %100)
+2: (%8, %101)
+  %5 = %100 + %8
+  return %5
+3: (%7)
+  %6 = 0.1 + %7
+  return %6
+
+fir: original code, but with "if not bool then branch to a new branch,
+passing cond, original_branch_args..." as args
+
+1: (%1, %2, %3)
+  %4 = %3 * 0.5
+  %14 = %2 isa Bool
+  br 4 (%2, %4) unless %14
+  br 3 (%4) unless %2
+  br 2 (%4)
+2: (%8)
+  %5 = 0.4 + %8
+  return %5
+3: (%7)
+  %6 = 0.1 + %7
+  return %6
+4: (%9, %10)
+  %11 = (Base.invokelatest)(var"##polybr_help#293", true, %10)
+  %12 = (Base.invokelatest)(var"##polybr_help#293", false, %10)
+  %13 = (IfElse.ifelse)(%9, %11, %12)
+  return %13
+
+new branch (4) returns
+IfElse.ifelse(cond,
+  polybr_help(true, branch_args...),
+  polybr_help(false, branch_args...))
+
+and each polybr_help calls a helper (one pair for each conditional branch, in this example just one) that takes (cond_as_bool, branch_args) then executes as normally
+1: (%15, %16)
+  br 4 (%16) unless %15
+  br 3 (%16)
+2: (%1, %2, %3)
+  %4 = %3 * 0.5
+  %14 = %2 isa Bool
+  br 5 (%2, %4) unless %14
+  br 4 (%4) unless %2
+  br 3 (%4)
+3: (%8)
+  %5 = 0.4 + %8
+  return %5
+4: (%7)
+  %6 = 0.1 + %7
+  return %6
+5: (%9, %10)
+  %11 = (Base.invokelatest)(var"##polybr_help#293", true, %10)
+  %12 = (Base.invokelatest)(var"##polybr_help#293", false, %10)
+  %13 = (IfElse.ifelse)(%9, %11, %12)
+  return %13
+
+and we return fir with first arg hidden
+
+lookup1
+  %2  => %9
+  %4  => %10
+
+lookup2
+  %9  => %15
+  %10 => %16
+
+
+
+
+1: (%1, %2, %3, %4)
+  br 3 (%3, %4) unless %1
+  br 2 (%2)
+2: (%5)
+  return %5
+3: (%6, %7)
+  %8 = %6 + %7
+  return %4
+
+function f(cond, then, else1, else2)
+  if cond
+    then
+  else
+    else1 + else2
+  end
+end

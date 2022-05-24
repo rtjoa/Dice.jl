@@ -1,4 +1,6 @@
-using IRTools, IfElse
+using IRTools
+using IfElse
+using IRTools: Statement, BasicBlock, blocks, block!, IR, argument!, return!, branches, xcall, isconditional, Branch, arguments, branch!
 
 ##################
 # Motivation
@@ -12,8 +14,20 @@ function foo(x,y)
     else
         0.1 + z
     end
+    # mut = 0
+    # if x
+    #     # print("hi!")
+    #     mut = y
+    # end
+    # mut + 1
 end
 
+function foo_float(x, y)
+    # z = y * 0.5
+    # w = 7
+    # return x * (w+z) + (1-x) * (0.1 + z)
+    IfElse.ifelse(x, foo(true, y), foo(false, y))
+end
 # control flow depending on `Bool`` guards works by default
 foo(true, 0.1) # 0.45
 
@@ -22,17 +36,24 @@ foo(true, 0.1) # 0.45
 IfElse.ifelse(guard::AbstractFloat, then, elze) = guard*then + (1-guard)*elze
 
 # control flow depending on such `AbstractFloat` guards is not polymorphic by default
-foo(0.9, 0.1) # ERROR: TypeError: non-boolean (Float64) used in boolean context
+# foo(0.9, 0.1) # ERROR: TypeError: non-boolean (Float64) used in boolean context
 
 ##################
 # Implementation
 ##################
 
-using IRTools: blocks, block!, IR, argument!, return!, xcall, isconditional, Branch, arguments
+function ir_to_function(ir, name=nothing)
+    if name === nothing
+        name = gensym("f")
+    end
+    @eval @generated function $(name)($([Symbol(:arg, i) for i = 1:length(arguments(ir))]...))
+        return IRTools.Inner.build_codeinfo($ir)
+    end
+end
 
 "Utility to translate between caller and function/block argument lists"
 function mapvars(block)
-    vmap = Dict()
+    vmap = Dict() #? maps argument to parameter?
     callerargs = []
     lookup(x) = get!(vmap, x) do 
         if (x isa IRTools.Variable) 
@@ -42,7 +63,7 @@ function mapvars(block)
             x # copy constants
         end
     end 
-    callerargs, lookup
+    callerargs, lookup, vmap
 end
 
 "Transform IR to have polymorphic control flow and add helper function IR"
@@ -74,7 +95,7 @@ function transform(ir)
                 poly = block!(ir)
 
                 # add arguments for guard, and variables that both branches depend on
-                polyargs, lookup = mapvars(poly) 
+                polyargs, lookup, vmap = mapvars(poly) 
                 
                 # look up all possible arguments for poly block
                 lookup(cond) # guard is first argument
@@ -125,7 +146,7 @@ function transform(ir)
         header = block!(help_ir, 1)
 
         # introduce header arguments for each caller argument
-        _, lookup2 = mapvars(header) 
+        _, lookup2, vmap = mapvars(header) 
         foreach(lookup2, caller_args)
         lookup(x) = lookup2(lookup1(x))
 
@@ -144,17 +165,19 @@ end
 
 "Generate a version of the method that has polymorphic control flow"
 function gen_polybr_f(funtype, args...)
-    ir = IR(funtype, args...)
+    gen_polybr_f_from_ir(IR(funtype, args...))
+end
+
+function gen_polybr_f_from_ir(ir)
+    # print(ir)
     fir, helpers = transform(ir)
+    println(fir)
+    println(helpers)
     for (helpername, helperir) in helpers
         # cf https://github.com/FluxML/IRTools.jl/blob/master/src/eval.jl
-        @eval @generated function $(helpername)($([Symbol(:arg, i) for i = 1:length(arguments(helperir))]...))
-            return IRTools.Inner.build_codeinfo($helperir)
-        end
+        ir_to_function(helperir, helpername)
     end
-    polybr = @eval @generated function $(gensym("polybr"))($([Symbol(:arg, i) for i = 1:length(arguments(fir))]...))
-        return IRTools.Inner.build_codeinfo($fir)
-    end
+    polybr = ir_to_function(fir)
     # hide first argument
     return (args...) -> polybr(nothing, args...)
 end
@@ -163,22 +186,22 @@ end
 # Example
 ##################
 
-# apply source transformation
-foo2 = gen_polybr_f(typeof(foo), Any, Any)
+# # apply source transformation
+# foo2 = gen_polybr_f(typeof(foo), Any, Any)
 
-# `Bool` guards still work (and evaluate only a single branch)
-foo2(true, 0.1) # 0.45
+# # `Bool` guards still work (and evaluate only a single branch)
+# @assert foo2(true, 0.1) ≈ foo(true, 0.1) #0.45 # 0.45
 
-# `AbstractFloat`` guards now also work
-foo2(0.4, 0.1) #0.27
+# # `AbstractFloat`` guards now also work
+# @assert foo2(0.4, 0.1) ≈ foo_float(0.4, 0.1) #0.27 #0.27
 
-# if the compiler can prove that the guard is `Bool`, the additional code disappears
-@code_typed foo2(true, 0.1)
+# # if the compiler can prove that the guard is `Bool`, the additional code disappears
+# @code_typed foo2(true, 0.1)
 
-# if the compiler can prove that the guard is not `Bool``, 
-# there is no traditional control flow, 
-# only calls to helper functions for both branches and `ifelse`
-@code_typed foo2(0.4, 0.1)
+# # if the compiler can prove that the guard is not `Bool``, 
+# # there is no traditional control flow, 
+# # only calls to helper functions for both branches and `ifelse`
+# @code_typed foo2(0.4, 0.1)
 
 
 ##################
@@ -186,21 +209,58 @@ foo2(0.4, 0.1) #0.27
 ##################
 
 # expected number of `true` sampled coins at start of list
-function num_true(x)
-    size = 0
-    while !isempty(x) && x[1]
-        x = x[2:end]
-        size += 1
-    end
-    size
-end
+# function num_true(x)
+#     size = 0
+#     while !isempty(x) && x[1]
+#         x = x[2:end]
+#         size += 1
+#     end
+#     size
+# end
 
-num_true([0.2, 0.9]) # ERROR: TypeError: non-boolean (Float64) used in boolean context
+# # num_true([0.2, 0.9]) # ERROR: TypeError: non-boolean (Float64) used in boolean context
 
-num_true2 = gen_polybr_f(typeof(num_true), Vector{Float64})
+# num_true2 = gen_polybr_f(typeof(num_true), Vector{Float64})
 
-num_true2([]) #0
-num_true2([0.2]) #0.2
-num_true2([0.2, 0.9]) # 0.2*(1-0.9)*1 + 0.2*0.9*2 = 0.38
-num_true2([0.2, 0.9, 0.4]) # 0.2*(1-0.9)*1 + 0.2*0.9*(1-0.4)*2 + 0.2*0.9*0.4*3 = 0.452
-num_true2([0.2, 0.9, 0.4, 0.0]) # 0.2*(1-0.9)*1 + 0.2*0.9*(1-0.4)*2 + 0.2*0.9*0.4*3 = 0.452
+# @assert num_true2([]) ≈ 0 #0
+# @assert num_true2([0.2]) ≈ 0.2 #0.2
+# @assert num_true2([0.2, 0.9]) ≈ 0.38 # 0.2*(1-0.9)*1 + 0.2*0.9*2 = 0.38
+# num_true2([0.2, 0.9, 0.4]) ≈ 0.452 # 0.2*(1-0.9)*1 + 0.2*0.9*(1-0.4)*2 + 0.2*0.9*0.4*3 = 0.452
+# num_true2([0.2, 0.9, 0.4, 0.0]) ≈ 0.452 # 0.2*(1-0.9)*1 + 0.2*0.9*(1-0.4)*2 + 0.2*0.9*0.4*3 = 0.452
+
+
+
+
+# IR Skeleton
+ir = IR()
+block!(ir)
+block!(ir)
+block1 = blocks(ir)[1]
+block2 = blocks(ir)[2]
+block3 = blocks(ir)[3]
+_1 = argument!(block1)
+_2 = argument!(block1)
+_3 = argument!(block1)
+_4 = argument!(block1)
+_5 = argument!(block2)
+_6 = argument!(block3)
+_7 = argument!(block3)
+
+# Block 1
+push!(branches(block1), Branch(_1, 3, [_3, _4]))
+push!(branches(block1), Branch(nothing, 2, [_2]))
+
+# Block 2
+return!(block2, _5)
+
+# Block 3
+_8 = push!(block3, xcall(:+, _6, _7))
+return!(block3, _8)
+
+# idk how this got added but let's remove it
+deleteat!(branches(block1), 1)  
+# println()
+# println(ir)
+
+f = ir_to_function(ir)
+gen_polybr_f_from_ir(ir)
