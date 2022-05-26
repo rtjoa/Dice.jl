@@ -1,6 +1,6 @@
 import IfElse: ifelse
 
-export Dist, DistBool, prob_equals, infer, ifelse
+export Dist, DistBool, prob_equals, infer, ifelse, flip
 
 "A probability distribution over values of type `T`"
 abstract type Dist{T} end
@@ -9,58 +9,84 @@ abstract type Dist{T} end
 abstract type DiceManager end
 
 struct DistBool <: Dist{Bool}
-    mgr::DiceManager
     bit
 end
 
-DistBool(mgr::DiceManager, b::Bool) =
-    DistBool(mgr, constant(mgr, b))
+DistBool(b::Bool) =
+    DistBool(constant(b))
 
-DistBool(mgr::DiceManager, p::Number) =
+DistBool(p::Number) =
     if iszero(p)
-        DistBool(mgr, false)
+        DistBool(false)
     elseif isone(p)
-        DistBool(mgr, true)
+        DistBool(true)
     else
-        DistBool(mgr, new_var(mgr, p))
+        DistBool(new_var(p))
     end
+
+
+infer_bool(x::DistBool) =
+    infer_bool(x.bit)
+
+isliteral(x::DistBool) =
+    isliteral(x.bit)
+
+isposliteral(x::DistBool) =
+    isposliteral(x.bit)
+
+isnegliteral(x::DistBool) =
+    isnegliteral(x.bit)
+
+issat(x::DistBool) =
+    issat(x.bit)
+
+isvalid(x::DistBool) =
+    isvalid(x.bit)
+
+num_nodes(bits::Vector{DistBool}; as_add=true) =  
+    num_nodes(map(b -> b.bit, bits); as_add)
+
+num_flips(bits::Vector{DistBool}) =  
+    num_vars(map(b -> b.bit, bits))
+
+dump_dot(bits::Vector{DistBool}, filename; as_add=true) =
+    dump_dot(map(b -> b.bit, bits), filename; as_add)
+
+flip(p) = DistBool(p)
 
 # display `DistBool` values depending on the manager type
 function Base.show(io::IO, x::DistBool) 
     # specific to CuddMgr DistBools...
     print(io, typeof(x))
-    show(io, x.mgr, x.bit)
+    show(io, x.bit)
 end
     
 function biconditional(x::DistBool, y::DistBool)
-    @assert x.mgr === y.mgr
-    DistBool(x.mgr, biconditional(x.mgr, x.bit, y.bit))
+    DistBool(biconditional(x.bit, y.bit))
 end
 
 function Base.:&(x::DistBool, y::DistBool) 
-    @assert x.mgr === y.mgr
-    DistBool(x.mgr, conjoin(x.mgr, x.bit, y.bit))
+    DistBool(conjoin(x.bit, y.bit))
 end 
 
 Base.:&(x::DistBool, y::Bool) = 
-    x & DistBool(x.mgr, y)
+    x & DistBool(y)
 
 Base.:&(x::Bool, y::DistBool) = 
     y & x
 
 function Base.:|(x::DistBool, y::DistBool)
-    @assert x.mgr === y.mgr
-    DistBool(x.mgr, disjoin(x.mgr, x.bit, y.bit))
+    DistBool(disjoin(x.bit, y.bit))
 end
 
 Base.:|(x::DistBool, y::Bool) = 
-    x | DistBool(x.mgr, y)
+    x | DistBool(y)
 
 Base.:|(x::Bool, y::DistBool) = 
     y | x
 
 negate(x::DistBool) =
-    DistBool(x.mgr, negate(x.mgr, x.bit))
+    DistBool(negate(x.bit))
     
 Base.:!(x::DistBool) = 
     negate(x)
@@ -69,18 +95,17 @@ prob_equals(x::DistBool, y::DistBool) =
     biconditional(x,y)
 
 function ifelse(cond::DistBool, then::DistBool, elze::DistBool)
-    @assert cond.mgr === then.mgr === elze.mgr
-    DistBool(cond.mgr, ite(cond.mgr, cond.bit, then.bit, elze.bit))
+    DistBool(ite(cond.bit, then.bit, elze.bit))
 end
 
 ifelse(cond::DistBool, x::Bool, y::DistBool) = 
-    ifelse(cond, DistBool(cond.mgr, x), y)
+    ifelse(cond, DistBool(x), y)
 
 ifelse(cond::DistBool, x::DistBool, y::Bool) = 
-    ifelse(cond, x, DistBool(cond.mgr, y))
+    ifelse(cond, x, DistBool(y))
 
 ifelse(cond::DistBool, x::Bool, y::Bool) = 
-    ifelse(cond, DistBool(cond.mgr, x), DistBool(cond.mgr, y))
+    ifelse(cond, DistBool(x), DistBool(y))
 
 ifelse(cond::DistBool, then::Tuple, elze::Tuple) =
     tuple([ifelse(cond, t, e) for (t, e) in zip(then, elze)]...)
@@ -88,9 +113,4 @@ ifelse(cond::DistBool, then::Tuple, elze::Tuple) =
 bools(b::DistBool) = [b]
 
 rundice(d::DistBool) =
-    rundice(d.mgr, d.bit) 
-
-infer(d::DistBool) =
-    infer(d.mgr, d.bit)
-
-
+    rundice(d.bit)

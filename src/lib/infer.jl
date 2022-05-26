@@ -1,4 +1,4 @@
-export infer, group_infer
+export infer, group_infer, infer_with_observation
 
 # Efficient infer for any distribution for which group_infer is defined
 function infer(d)
@@ -15,6 +15,17 @@ function infer(d)
     ans
 end
 
+function infer_with_observation(d::Dist, observation::DistBool)
+    dist = Dict()
+    group_infer(observation, true, 1.0) do observation_met, observe_prior, denom
+        if !observation_met return end
+        group_infer(d, observe_prior, denom) do assignment, _, p
+            dist[assignment] = p/denom
+        end
+    end
+    dist
+end
+
 # Workhorse for group_infer; it's DistBools all the way down
 # Params:
 #   d is the Dist to infer on
@@ -25,7 +36,7 @@ end
 #   x, a new_prior equivalent to (prior & (d = x)), and Pr(new_prior)
 function group_infer(f, d::DistBool, prior, prior_p::Float64)
     new_prior = d & prior
-    p = infer(new_prior)
+    p = infer_bool(new_prior)
     if p != 0
         f(true, new_prior, p)
     end
