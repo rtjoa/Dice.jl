@@ -28,7 +28,7 @@ function rotate_str(s::DistString, k::DistInt)
 end
 
 # Generate cipher text
-k = discrete([1/26 for _ in 0:25])
+k = uniform(0:25)
 chars = [choose_char() for _ in 1:length(cipher_text)]
 original = DistString(chars, DistInt(length(cipher_text)))
 rotated = rotate_str(original, k)

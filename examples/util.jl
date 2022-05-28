@@ -18,6 +18,14 @@ function discrete(p)
     return ans
 end
 
+function uniform(domain::AbstractVector{Int})
+    p = zeros(maximum(domain) + 1)
+    for x in domain
+        p[x + 1] = 1/length(domain)
+    end
+    discrete(p)
+end
+
 function print_dict(d)
     d = sort([(join(x), val) for (x, val) in d], by= xv -> -xv[2])  # by decreasing probability
     println("$(typeof(d)) with $(length(d)) entries")
